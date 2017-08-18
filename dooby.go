@@ -83,7 +83,10 @@ func (d *DBSpan) Write(key DBKey, val DBValue) *DBSpan {
 
 func (d DBSpan) Commit() CommitResult {
 	d.db.Lock()
-	result := d.commit()
+	result := CommitResult(false)
+	if d.IsCongruent() {
+		result = d.commit()
+	}
 	d.db.Unlock()
 	return result
 }
