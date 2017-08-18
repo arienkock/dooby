@@ -13,8 +13,9 @@ func (cr CommitResult) OK() bool {
 }
 
 type Record struct {
-	Key   DBKey
-	Value DBValue
+	Key         DBKey
+	Value       DBValue
+	Uncommitted bool
 }
 
 type DBSpan struct {
@@ -50,7 +51,7 @@ func (d *DB) Start() *DBSpan {
 func (d DBSpan) IsCongruent() bool {
 	currentSpan := &d
 	for currentSpan != nil {
-		if currentSpan.IsRead && d.db.data[currentSpan.Key] != currentSpan.Value {
+		if currentSpan.IsRead && !currentSpan.Uncommitted && d.db.data[currentSpan.Key] != currentSpan.Value {
 			return false
 		}
 		currentSpan = currentSpan.Parent
@@ -59,13 +60,28 @@ func (d DBSpan) IsCongruent() bool {
 }
 
 func (d *DBSpan) Read(key DBKey) *DBSpan {
+	var foundInSpan bool
+	var foundValue DBValue
+	currentSpan := d
+	for currentSpan != nil {
+		if !currentSpan.IsRead && currentSpan.Key == key {
+			foundValue = currentSpan.Value
+			foundInSpan = true
+			break
+		}
+		currentSpan = currentSpan.Parent
+	}
+	if !foundInSpan {
+		foundValue = d.db.data[key]
+	}
 	return &DBSpan{
 		db:     d.db,
 		Parent: d,
 		IsRead: true,
 		Record: Record{
-			Key:   key,
-			Value: d.db.data[key],
+			Key:         key,
+			Value:       foundValue,
+			Uncommitted: foundInSpan,
 		},
 	}
 }

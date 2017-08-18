@@ -18,6 +18,21 @@ func TestDBSpan_Read(t *testing.T) {
 	}
 }
 
+func TestReadUncommittedValue(t *testing.T) {
+	testDB := NewDB()
+	firstRead := testDB.Start().Write("X", "Y").Read("X")
+	if firstRead.Value != "Y" {
+		t.Error("first read should be 'Y'")
+	}
+	secondRead := firstRead.Write("X", "Z").Read("X")
+	if secondRead.Value != "Z" {
+		t.Error("second read should be 'Z'")
+	}
+	if !secondRead.Commit().OK() {
+		t.Error("uncommitted reads should not break congruency")
+	}
+}
+
 func TestDBSpan_WriteAndCommit(t *testing.T) {
 	testDB := &DB{
 		data:   make(map[DBKey]DBValue),
@@ -69,6 +84,25 @@ func BenchmarkSerialWrites(b *testing.B) {
 			Write("A", "3").
 			Write("A", "4").
 			Write("A", "5").
+			Commit()
+	}
+	benchmarkOK = commitResult.OK()
+}
+
+func BenchmarkSerialReadsAndWrites(b *testing.B) {
+	var commitResult CommitResult
+	for i := 0; i < b.N; i++ {
+		commitResult = NewDB().Start().
+			Write("A", "1").
+			Read("A").
+			Write("A", "2").
+			Read("A").
+			Write("A", "3").
+			Read("A").
+			Write("A", "4").
+			Read("A").
+			Write("A", "5").
+			Read("A").
 			Commit()
 	}
 	benchmarkOK = commitResult.OK()
